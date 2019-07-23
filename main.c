@@ -12,8 +12,6 @@
 
 struct winsize size;
 
-static int bomb_cell_ratio = 4;
-
 int grid_rows = 6;
 int grid_cols = 5;
 #define GRID_Y                                  3
@@ -30,20 +28,21 @@ int status_cols = 37;
 #define STATUS_Y                                GRID_Y 
 #define STATUS_X                                GRID_X - 2
 
-int controls_rows = 4;
-int controls_cols = 37;
-#define CONTROLS_X			GRID_X
+//int controls_rows = 4;
+//int controls_cols = 37;
+//#define CONTROLS_X			GRID_X
 
 
 #define MAX_GRID_ROWS ((size.ws_row) - (status_rows) - (STATUS_Y))
 
-#define OFFSET(board, x, y) (board + (((y-START_Y) / (CELL_LENGTH + 1)) * grid_cols + ((x - START_X) / (CELL_WIDTH + 1))))
+//#define OFFSET(board, x, y) (board + (((y-START_Y) / (CELL_LENGTH + 1)) * grid_cols + ((x - START_X) / (CELL_WIDTH + 1))))
+#define OFFSET(board, x, y) (board[(y - START_Y) / (CELL_LENGTH + 1)][(x - START_X) / (CELL_WIDTH + 1)])
 
 static WINDOW *status;
 static WINDOW *grid;
 
-static char *playboard = NULL;
-static char *puzzle = NULL;
+char **playboard = NULL;
+char **puzzle = NULL;
 
 static int bombs = 0;
 static int bombflags = 0;
@@ -71,73 +70,60 @@ static void init(void)
 // 
 static void create_puzzle(void) {
 
-	free(puzzle);
-	free(playboard);
+	int i = 0;
+	int j = 0;
 
-	puzzle = malloc((grid_rows * grid_cols + 1) * sizeof(char));
-	playboard = malloc((grid_rows * grid_cols + 1) * sizeof(char));
+	puzzle = malloc(grid_rows * sizeof(char *));
+	playboard = malloc(grid_rows * sizeof(char *));
+	for(i = 0; i < grid_rows; i++) {
+		puzzle[i] = malloc(grid_cols * sizeof(char));
+		playboard[i] = malloc(grid_cols * sizeof(char));
+	}
 
-	memset(puzzle, '0', (grid_rows * grid_cols + 1) * sizeof(char));
-
-	bombs = (grid_rows * grid_cols) / bomb_cell_ratio / 2;
+	bombs = (grid_rows * grid_cols) / 6;
 
 	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
 	wrefresh(status);
 
-	int i = 0;
-
-	for(i = 0; i < grid_rows * grid_cols; i++) {
-		playboard[i] = '#';
+	for(i = 0; i < grid_rows; i++) {
+		for(j = 0; j < grid_cols; j++) {
+			puzzle[i][j] = '0';
+			playboard[i][j] = '#';
+		}
 	}
-	playboard[grid_rows * grid_cols] = '\0';
 
 	srand(time(NULL));
 
-	i = 0;
+	int count = 0;
+	while(count < bombs) {
 
-	while(i < bombs) 
-	{
-		int random = rand() % (grid_rows * grid_cols) + 1;
-		if(puzzle[random] != 'b') {
+		int random = rand() % (grid_rows);
+		int random2 = rand() % (grid_cols);
+		if(puzzle[random][random2] != 'b') {
 
-			puzzle[random] = 'b';
-			i++;
+			puzzle[random][random2] = 'b';
+			count++;
 
-			// top left
-			if(random % grid_cols != 0 && random - grid_cols - 1 >= 0 && puzzle[random - grid_cols - 1] != 'b') {
-				puzzle[random - grid_cols - 1]++;
-			} 
-			// top
-			if(random - grid_cols >= 0 && puzzle[random - grid_cols] != 'b') {
-				puzzle[random - grid_cols]++;
+			for(i = -1; i <= 1; i++) {
+				for(j = -1; j <= 1; j++) {
+					if(i == 0 && j == 0) {
+						continue;
+					} else if(random + i < 0 || random2 + j < 0) {
+						continue;
+					} else if(random + i >= grid_rows || random2 + j >= grid_cols) {
+						continue;
+					} else if(puzzle[random + i][random2 + j] == 'b') {
+						continue;
+					}
+
+					puzzle[random + i][random2 + j]++;
+				}
 			}
-			// top right
-			if(((random + 1) % grid_cols != 0) && (random - grid_cols + 1) >= 0 && puzzle[random - grid_cols + 1] != 'b') {
-				puzzle[random - grid_cols + 1]++;
-			}
-			// left
-			if(random % grid_cols != 0 && random - 1 >= 0 && puzzle[random - 1] != 'b') {
-				puzzle[random - 1]++;
-			}
-			// right
-			if((random + 1) % grid_cols != 0 && random + 1 < grid_rows * grid_cols && puzzle[random + 1] != 'b') {
-				puzzle[random + 1]++;
-			}
-			// bottom left
-			if(random % grid_cols != 0 && random + grid_cols - 1 < grid_rows * grid_cols && puzzle[random + grid_cols - 1] != 'b') {
-				puzzle[random + grid_cols - 1]++;
-			}
-			// bottom
-			if(random + grid_cols < grid_rows * grid_cols && puzzle[random + grid_cols] != 'b') {
-				puzzle[random + grid_cols]++;
-			}
-			// bottom right
-			if((random + 1) % grid_cols != 0 && random + grid_cols + 1 < grid_rows * grid_cols && puzzle[random + grid_cols + 1] != 'b') {
-				puzzle[random + grid_cols + 1]++;
-			}
+
 		}
 
 	}
+
 }
 
 static void draw_row(int r) {
@@ -145,7 +131,7 @@ static void draw_row(int r) {
 	for(j = 0; j < grid_cols + 1; j++) {
 		waddch(grid, '|');
 		if(j < grid_cols)
-			waddch(grid, playboard[r * grid_cols + j]);
+			waddch(grid, playboard[r][j]);
 	}
 	waddch(grid, '\n');
 }
@@ -173,12 +159,27 @@ static void create_grid(void)
 static void clean(int sig) {
 	endwin();
 
+	int i = 0;
+	for(i = grid_rows - 1; i >= 0; i--) {
+		free(puzzle[i]);
+		free(playboard[i]);
+	}
+
 	free(puzzle);
 	free(playboard);
+
+	exit(1);
+
 }
 
 static void clean2(void) {
 	endwin();
+
+	int i = 0;
+	for(i = grid_rows - 1; i >= 0; i--) {
+		free(puzzle[i]);
+		free(playboard[i]);
+	}
 
 	free(puzzle);
 	free(playboard);
@@ -215,15 +216,10 @@ int main(void) {
 		sigaction(sig[i], &act, NULL);
 	}
 
-
-
 	init();
-	wrefresh(status);
-
 
 	create_puzzle();
 	create_grid();
-
 	wmove(grid, y, x);	
 	wrefresh(grid);
 
@@ -276,9 +272,9 @@ int main(void) {
 
 				break;
 				case 'f':
-				if(*OFFSET(playboard, x, y) == '#') { 
-					*(OFFSET(playboard, x, y)) = 'f';
-					if(bombflags < bombs - 1 && (*(OFFSET(puzzle, x, y))) == 'b') {
+				if(OFFSET(playboard, x, y) == '#') { 
+					(OFFSET(playboard, x, y)) = 'f';
+					if(bombflags < bombs - 1 && ((OFFSET(puzzle, x, y))) == 'b') {
 						bombflags++;
 						werase(status);
 						wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
@@ -293,9 +289,9 @@ int main(void) {
 				}
 				break;
 				case '\n':
-				if(*(OFFSET(playboard, x, y)) == '#') {
+				if(OFFSET(playboard, x, y) == '#') {
 					open++;
-					if((*(OFFSET(playboard, x, y)) = *(OFFSET(puzzle, x, y))) == 'b') {
+					if((OFFSET(playboard, x, y) = OFFSET(puzzle, x, y)) == 'b') {
 						werase(status);
 						wprintw(status, "You lose!");
 						playing = false;
@@ -306,9 +302,9 @@ int main(void) {
 						playing = false;
 						open = 0;
 					}
-				} else if(*(OFFSET(playboard, x, y)) == 'f') {
-					*(OFFSET(playboard, x, y)) = '#';
-					if(*OFFSET(puzzle, x, y) == 'b') {
+				} else if(OFFSET(playboard, x, y) == 'f') {
+					OFFSET(playboard, x, y) = '#';
+					if(OFFSET(puzzle, x, y) == 'b') {
 						bombflags--;
 						werase(status);
 						wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
@@ -316,7 +312,6 @@ int main(void) {
 				}
 				wmove(grid, y, START_X - 1 - (CELL_WIDTH / 2));
 				draw_row((y - START_Y) / (CELL_LENGTH + 1));
-
 				break;
 				case KEY_RESIZE:
 
@@ -351,3 +346,4 @@ int main(void) {
 
 	return 0;
 }
+
