@@ -35,17 +35,16 @@ int controls_cols = 37;
 #define CONTROLS_X			GRID_X
 
 
-#define MAX_GRID_ROWS ((size.ws_row) - (controls_rows) - (status_rows) - (STATUS_Y))
+#define MAX_GRID_ROWS ((size.ws_row) - (status_rows) - (STATUS_Y))
 
 #define OFFSET(board, x, y) (board + (((y-START_Y) / (CELL_LENGTH + 1)) * grid_cols + ((x - START_X) / (CELL_WIDTH + 1))))
 
 static WINDOW *status;
 static WINDOW *grid;
-static WINDOW *controls;
 
 static char *playboard = NULL;
 static char *puzzle = NULL;
-static int *locations = NULL;
+
 static int bombs = 0;
 static int bombflags = 0;
 
@@ -63,14 +62,7 @@ static void init(void)
 	ioctl(fileno(stdout), TIOCGWINSZ, &size);
 	status = newwin(status_rows, size.ws_col - STATUS_X, STATUS_X, STATUS_Y);
 	grid = newwin(MAX_GRID_ROWS, size.ws_col - GRID_X, GRID_X, GRID_Y);
-	controls = newwin(controls_rows, size.ws_col - CONTROLS_X, size.ws_row - controls_rows, CONTROLS_X);
 
-
-	wprintw(controls, "CONTROLS\n");
-	wprintw(controls, " h - left\t");
-	wprintw(controls, " j - down\t");
-	wprintw(controls, " k - up\t");
-	wprintw(controls, " l - right\n\n");
 
 	refresh();
 
@@ -80,7 +72,6 @@ static void init(void)
 static void create_puzzle(void) {
 
 	free(puzzle);
-	free(locations);
 	free(playboard);
 
 	puzzle = malloc((grid_rows * grid_cols + 1) * sizeof(char));
@@ -93,7 +84,6 @@ static void create_puzzle(void) {
 	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
 	wrefresh(status);
 
-	locations = malloc(bombs * sizeof(int));
 	int i = 0;
 
 	for(i = 0; i < grid_rows * grid_cols; i++) {
@@ -111,7 +101,7 @@ static void create_puzzle(void) {
 		if(puzzle[random] != 'b') {
 
 			puzzle[random] = 'b';
-			locations[i++] = random;
+			i++;
 
 			// top left
 			if(random % grid_cols != 0 && random - grid_cols - 1 >= 0 && puzzle[random - grid_cols - 1] != 'b') {
@@ -183,7 +173,6 @@ static void create_grid(void)
 static void clean(int sig) {
 	endwin();
 
-	free(locations);
 	free(puzzle);
 	free(playboard);
 }
@@ -191,7 +180,6 @@ static void clean(int sig) {
 static void clean2(void) {
 	endwin();
 
-	free(locations);
 	free(puzzle);
 	free(playboard);
 }
@@ -230,7 +218,6 @@ int main(void) {
 
 
 	init();
-	wrefresh(controls);
 	wrefresh(status);
 
 
@@ -339,7 +326,6 @@ int main(void) {
 
 				init();
 				create_grid();
-				wrefresh(controls);
 				wrefresh(grid);
 				wrefresh(status);
 
