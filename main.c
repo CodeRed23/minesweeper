@@ -10,10 +10,12 @@
 #include <sys/stat.h>
 #include <ncurses.h>
 
+#define PORT 12345
+
 struct winsize size;
 
 int grid_rows = 7;
-int grid_cols = 10;
+int grid_cols = 20;
 #define GRID_Y                                  4
 #define GRID_X                                  3
 
@@ -38,7 +40,7 @@ static WINDOW *grid = NULL;
 char **playboard = NULL;
 char **puzzle = NULL;
 
-static int open = 0;
+static int topen = 0;
 static int bombs = 0;
 static int bombflags = 0;
 static int correctflags = 0;
@@ -84,11 +86,11 @@ static int init(void)
 	status = newwin(status_rows, size.ws_col - STATUS_X, STATUS_Y, STATUS_X);
 	grid = newwin(MAX_GRID_ROWS, size.ws_col - GRID_X, GRID_Y, GRID_X);
 	
-	puzzle = realloc(puzzle, (size.ws_col - GRID_X) / 2 * sizeof(char *));
-	playboard = realloc(playboard, (size.ws_col - GRID_X) / 2 * sizeof(char *));
+	puzzle = realloc(puzzle, (size.ws_row - GRID_Y) / 2 * sizeof(char *));
+	playboard = realloc(playboard, (size.ws_row - GRID_Y) / 2 * sizeof(char *));
 	for(i = 0; i < (size.ws_row - GRID_Y) / 2; i++) {
-		puzzle[i] = realloc(puzzle[i], (size.ws_row - GRID_Y) / 2 * sizeof(char));
-		playboard[i] = realloc(playboard[i], (size.ws_row - GRID_Y) / 2 * sizeof(char));
+		puzzle[i] = realloc(puzzle[i], (size.ws_col - GRID_X) / 2 * sizeof(char));
+		playboard[i] = realloc(playboard[i], (size.ws_col - GRID_X) / 2 * sizeof(char));
 	}
 
 
@@ -103,6 +105,7 @@ static void create_puzzle(void) {
 
 	int i = 0;
 	int j = 0;
+	int count = 0;
 
 	bombs = (grid_rows * grid_cols) / 6;
 
@@ -118,16 +121,12 @@ static void create_puzzle(void) {
 
 	srand(time(NULL));
 
-	int count = 0;
 	while(count < bombs) {
-
 		int random = rand() % (grid_rows);
 		int random2 = rand() % (grid_cols);
 		if(puzzle[random][random2] != 'b') {
-
 			puzzle[random][random2] = 'b';
 			count++;
-
 			for(i = -1; i <= 1; i++) {
 				for(j = -1; j <= 1; j++) {
 					if(i == 0 && j == 0) {
@@ -139,29 +138,29 @@ static void create_puzzle(void) {
 					} else if(puzzle[random + i][random2 + j] == 'b') {
 						continue;
 					}
-
 					puzzle[random + i][random2 + j]++;
 				}
 			}
-
 		}
-
 	}
-
 }
 
 static void draw_row(int r) {
 	int j = 0;
+
+	wmove(grid,  r * 2 + CELL_WIDTH, 0);
+
 	for(j = 0; j < grid_cols + 1; j++) {
 		waddch(grid, '|');
-		if(j < grid_cols)
+		if(j < grid_cols) {
 			waddch(grid, playboard[r][j]);
+		}
 	}
 	waddch(grid, '\n');
 }
 
 
-static void create_grid(void)
+static void draw_grid(void)
  {
         int i, j;
 	wmove(grid, 0, 0);
@@ -169,8 +168,9 @@ static void create_grid(void)
 	for(i = 0; i < grid_rows + 1; i++) {
 		for(j = 0; j < grid_cols + 1; j++) {
 			waddch(grid, '+');
-			if(j < grid_cols) 
+			if(j < grid_cols) {
 				waddch(grid, '-');
+			}
 		}
 		waddch(grid, '\n');
 		if(i < grid_rows) {
@@ -180,51 +180,55 @@ static void create_grid(void)
 
 }
 
+static void reset(void) {
+
+	wrefresh(status);
+	wmove(grid, START_X, START_Y);
+
+	topen = 0;
+	correctflags = 0;
+	bombflags = 0;
+
+	create_puzzle();
+	draw_grid();
+	wrefresh(grid);
+
+	werase(status);
+	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+	wrefresh(status);
+
+}
+
+
 static void resize_game(void) {
 
-	int tmp_rows, tmp_cols;
+	int tmp_rows = 0, tmp_cols = 0;
 
 	werase(status);
-	wprintw(status, "Enter rows: ");
+	wprintw(status, "Enter dimensions[rows cols]: ");
 	wrefresh(status);
 	echo();
-	wscanw(status, "%d", &tmp_rows);
-	if(tmp_rows > (size.ws_row - GRID_Y) / 2) {
+	wscanw(status, "%d%d", &tmp_rows, &tmp_cols);
+
+	if(tmp_rows > (size.ws_row - GRID_Y) / 2 
+		|| tmp_cols > (size.ws_col - GRID_X) / 2 || tmp_rows <= 0 
+		|| tmp_cols <= 0) {
+
 		werase(status);
-		wprintw(status, "too many rows!");
+		wprintw(status, "no no");
 		wrefresh(status);
-		noecho();
 		getch();
 		werase(status);
 		wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
 		wrefresh(status);
-		return;
-	} 
+	} else { 
+		grid_rows = tmp_rows;
+		grid_cols = tmp_cols;
 
-	werase(status);
-	wprintw(status, "Enter cols: ");
-	wrefresh(status);
-	wscanw(status, "%d", &tmp_cols);
-
-	if(tmp_cols > (size.ws_col - GRID_X) / 2) {
-		werase(status);
-		wprintw(status, "too many cols!");
-		wrefresh(status);
-		noecho();
-		getch();
-		werase(status);
-		wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
-		wrefresh(status);
-		return;
-	} 
-
-	grid_rows = tmp_rows;
-	grid_cols = tmp_cols;
+		reset();
+	}
 
 	noecho();
-	create_puzzle();
-	create_grid();
-	wrefresh(grid);
 
 }
 
@@ -242,24 +246,7 @@ static void resize_ter(void) {
 		}
 	}
 
-	create_grid();
-	wrefresh(grid);
-
-	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
-	wrefresh(status);
-
-}
-
-static void reset(void) {
-
-	getch();
-
-	open = 0;
-	correctflags = 0;
-	bombflags = 0;
-
-	create_puzzle();
-	create_grid();
+	draw_grid();
 	wrefresh(grid);
 
 	werase(status);
@@ -282,7 +269,7 @@ int main(void) {
 	}
 
 	create_puzzle();
-	create_grid();
+	draw_grid();
 	wmove(grid, y, x);	
 	wrefresh(grid);
 
@@ -320,13 +307,15 @@ int main(void) {
 			if(OFFSET(playboard, x, y) == '#') { 
 				(OFFSET(playboard, x, y)) = 'f';
 				bombflags++;
-				wmove(grid, y, START_X - 1 - (CELL_WIDTH / 2));
+				//wmove(grid, y, START_X - 1 - (CELL_WIDTH / 2));
 				draw_row((y - START_Y) / (CELL_LENGTH + 1));
-				if(correctflags < bombs && ((OFFSET(puzzle, x, y))) == 'b') {
+				werase(status);
+				wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+				if((OFFSET(puzzle, x, y)) == 'b') {
 					correctflags++;
-					werase(status);
-					wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
-				} else {
+				} 
+				
+				if (correctflags == bombs) {
 					werase(status);
 					wprintw(status, "You win!");
 					reset();
@@ -335,12 +324,13 @@ int main(void) {
 			break;
 			case '\n':
 			if(OFFSET(playboard, x, y) == '#') {
-				open++;
+				topen++;
 				if((OFFSET(playboard, x, y) = OFFSET(puzzle, x, y)) == 'b') {
+					draw_row((y - START_Y) / (CELL_LENGTH + 1));
 					werase(status);
 					wprintw(status, "You lose!");
 					reset();
-				} else if(open == grid_rows * grid_cols - bombs) {
+				} else if(topen == grid_rows * grid_cols - bombs) {
 					werase(status);
 					wprintw(status, "You win!");
 					reset();
@@ -354,7 +344,6 @@ int main(void) {
 					wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
 				}
 			}
-			wmove(grid, y, START_X - 1 - (CELL_WIDTH / 2));
 			draw_row((y - START_Y) / (CELL_LENGTH + 1));
 			break;
 			case KEY_RESIZE:
@@ -366,9 +355,6 @@ int main(void) {
 		wmove(grid, y, x);	
 		wrefresh(grid);
 	}
-
-	endwin();
-	clear();
 
 	return 0;
 }
