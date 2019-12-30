@@ -64,6 +64,8 @@ static void clean(void) {
 	free(playboard);
 	playboard = NULL;
 
+	endwin();
+
 }
 
 // sets up the interface for the game
