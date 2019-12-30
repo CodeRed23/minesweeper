@@ -34,6 +34,8 @@ int status_cols = 37;
 
 #define OFFSET(board, x, y) (board[(y - START_Y) / (CELL_LENGTH + 1)][(x - START_X) / (CELL_WIDTH + 1)])
 
+#define DRAW_ROW_FROM_POS(r) (draw_row((y - START_Y) / (CELL_LENGTH + 1)))
+
 static WINDOW *status = NULL;
 static WINDOW *grid = NULL;
 
@@ -185,6 +187,7 @@ static void draw_grid(void)
 static void reset(void) {
 
 	wrefresh(status);
+	getch();
 	wmove(grid, START_X, START_Y);
 
 	topen = 0;
@@ -310,7 +313,8 @@ int main(void) {
 				(OFFSET(playboard, x, y)) = 'f';
 				bombflags++;
 				//wmove(grid, y, START_X - 1 - (CELL_WIDTH / 2));
-				draw_row((y - START_Y) / (CELL_LENGTH + 1));
+				/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
+				DRAW_ROW_FROM_POS(y);
 				werase(status);
 				wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
 				if((OFFSET(puzzle, x, y)) == 'b') {
@@ -328,7 +332,8 @@ int main(void) {
 			if(OFFSET(playboard, x, y) == '#') {
 				topen++;
 				if((OFFSET(playboard, x, y) = OFFSET(puzzle, x, y)) == 'b') {
-					draw_row((y - START_Y) / (CELL_LENGTH + 1));
+					/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
+					DRAW_ROW_FROM_POS(y);
 					werase(status);
 					wprintw(status, "You lose!");
 					reset();
@@ -346,7 +351,8 @@ int main(void) {
 					wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
 				}
 			}
-			draw_row((y - START_Y) / (CELL_LENGTH + 1));
+			/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
+			DRAW_ROW_FROM_POS(y);
 			break;
 			case KEY_RESIZE:
 			resize_ter();
