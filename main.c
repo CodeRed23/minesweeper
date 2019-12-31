@@ -195,6 +195,7 @@ static void reset(void) {
 	bombflags = 0;
 
 	create_puzzle();
+	werase(grid);
 	draw_grid();
 	wrefresh(grid);
 
@@ -331,9 +332,10 @@ int main(void) {
 			case '\n':
 			if(OFFSET(playboard, x, y) == '#') {
 				topen++;
+				mvwaddch(grid, y, x, OFFSET(puzzle, x, y));
 				if((OFFSET(playboard, x, y) = OFFSET(puzzle, x, y)) == 'b') {
 					/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
-					DRAW_ROW_FROM_POS(y);
+					/* DRAW_ROW_FROM_POS(y); */
 					werase(status);
 					wprintw(status, "You lose!");
 					reset();
@@ -342,8 +344,9 @@ int main(void) {
 					wprintw(status, "You win!");
 					reset();
 				}
-			} else if(OFFSET(playboard, x, y) == 'f') {
+			} else /* if(OFFSET(playboard, x, y) == 'f') */ {
 				OFFSET(playboard, x, y) = '#';
+				mvwaddch(grid, y, x, '#');
 				bombflags--;
 				if(OFFSET(puzzle, x, y) == 'b') {
 					correctflags--;
@@ -352,7 +355,7 @@ int main(void) {
 				}
 			}
 			/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
-			DRAW_ROW_FROM_POS(y);
+			/* DRAW_ROW_FROM_POS(y); */
 			break;
 			case KEY_RESIZE:
 			resize_ter();
