@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <time.h>
 #include <signal.h>
 #include <unistd.h>
@@ -21,9 +22,8 @@ int grid_cols = 20;
 
 #define CELL_LENGTH 1
 #define CELL_WIDTH 1
-#define START_X (CELL_WIDTH / 2 + 1)
-#define START_Y (CELL_LENGTH / 2 + 1)
-
+#define START_X ((CELL_WIDTH / 2) + 1)
+#define START_Y ((CELL_LENGTH / 2) + 1)
 
 int status_rows = 1;
 int status_cols = 37;
@@ -34,8 +34,6 @@ int status_cols = 37;
 
 #define OFFSET(board, x, y) (board[(y - START_Y) / (CELL_LENGTH + 1)][(x - START_X) / (CELL_WIDTH + 1)])
 
-#define DRAW_ROW_FROM_POS(r) (draw_row((y - START_Y) / (CELL_LENGTH + 1)))
-
 static WINDOW *status = NULL;
 static WINDOW *grid = NULL;
 
@@ -45,7 +43,6 @@ char **puzzle = NULL;
 static int topen = 0;
 static int bombs = 0;
 static int bombflags = 0;
-static int correctflags = 0;
 
 //static sigset_t caught_signals;
 
@@ -157,7 +154,14 @@ static void draw_row(int r) {
 	for(j = 0; j < grid_cols + 1; j++) {
 		waddch(grid, '|');
 		if(j < grid_cols) {
-			waddch(grid, playboard[r][j]);
+			int i = 0;
+			for(i = 1; i <= CELL_WIDTH; i++) {
+				if(i == CELL_WIDTH / 2 + 1) {
+					waddch(grid, playboard[r][j]);
+				} else {
+					waddch(grid, ' ');
+				}
+			}
 		}
 	}
 	waddch(grid, '\n');
@@ -165,15 +169,17 @@ static void draw_row(int r) {
 
 
 static void draw_grid(void)
- {
-        int i, j;
+{
+	int i, j;
 	wmove(grid, 0, 0);
 
 	for(i = 0; i < grid_rows + 1; i++) {
 		for(j = 0; j < grid_cols + 1; j++) {
 			waddch(grid, '+');
 			if(j < grid_cols) {
-				waddch(grid, '-');
+				int k;
+				for(k = 0; k < CELL_WIDTH; k++) 
+					waddch(grid, '-');
 			}
 		}
 		waddch(grid, '\n');
@@ -191,7 +197,6 @@ static void reset(void) {
 	wmove(grid, START_X, START_Y);
 
 	topen = 0;
-	correctflags = 0;
 	bombflags = 0;
 
 	create_puzzle();
@@ -313,20 +318,9 @@ int main(void) {
 			if(OFFSET(playboard, x, y) == '#') { 
 				(OFFSET(playboard, x, y)) = 'f';
 				bombflags++;
-				//wmove(grid, y, START_X - 1 - (CELL_WIDTH / 2));
-				/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
-				DRAW_ROW_FROM_POS(y);
+				mvwaddch(grid, y, x, 'f');
 				werase(status);
 				wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
-				if((OFFSET(puzzle, x, y)) == 'b') {
-					correctflags++;
-				} 
-				
-				if (correctflags == bombs) {
-					werase(status);
-					wprintw(status, "You win!");
-					reset();
-				}
 			}
 			break;
 			case '\n':
@@ -334,8 +328,6 @@ int main(void) {
 				topen++;
 				mvwaddch(grid, y, x, OFFSET(puzzle, x, y));
 				if((OFFSET(playboard, x, y) = OFFSET(puzzle, x, y)) == 'b') {
-					/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
-					/* DRAW_ROW_FROM_POS(y); */
 					werase(status);
 					wprintw(status, "You lose!");
 					reset();
@@ -344,18 +336,15 @@ int main(void) {
 					wprintw(status, "You win!");
 					reset();
 				}
-			} else /* if(OFFSET(playboard, x, y) == 'f') */ {
+			} else {
 				OFFSET(playboard, x, y) = '#';
 				mvwaddch(grid, y, x, '#');
 				bombflags--;
 				if(OFFSET(puzzle, x, y) == 'b') {
-					correctflags--;
 					werase(status);
 					wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
 				}
 			}
-			/* draw_row((y - START_Y) / (CELL_LENGTH + 1)); */
-			/* DRAW_ROW_FROM_POS(y); */
 			break;
 			case KEY_RESIZE:
 			resize_ter();
