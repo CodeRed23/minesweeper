@@ -20,19 +20,20 @@ int grid_cols = 20;
 #define GRID_Y                                  4
 #define GRID_X                                  3
 
-#define CELL_LENGTH 1
-#define CELL_WIDTH 1
-#define START_X ((CELL_WIDTH / 2) + 1)
-#define START_Y ((CELL_LENGTH / 2) + 1)
+#define CELL_LENGTH 				1
+#define CELL_WIDTH 				1
+#define START_X 				((CELL_WIDTH / 2) + 1)
+#define START_Y 				((CELL_LENGTH / 2) + 1)
 
 int status_rows = 1;
 int status_cols = 37;
 #define STATUS_Y                                GRID_Y - 2
 #define STATUS_X                                GRID_X
 
+
 #define MAX_GRID_ROWS ((size.ws_row) - (status_rows) - (STATUS_Y))
 
-#define OFFSET(board, x, y) (board[(y - START_Y) / (CELL_LENGTH + 1)][(x - START_X) / (CELL_WIDTH + 1)])
+#define OFF(board, x, y) (board[(y - START_Y) / (CELL_LENGTH + 1)][(x - START_X) / (CELL_WIDTH + 1)])
 
 static WINDOW *status = NULL;
 static WINDOW *grid = NULL;
@@ -42,7 +43,7 @@ char **puzzle = NULL;
 
 static int topen = 0;
 static int bombs = 0;
-static int bombflags = 0;
+static int flags = 0;
 
 //static sigset_t caught_signals;
 
@@ -110,13 +111,13 @@ static void create_puzzle(void) {
 
 	bombs = (grid_rows * grid_cols) / 6;
 
-	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, flags);
 	wrefresh(status);
 
 	for(i = 0; i < grid_rows; i++) {
 		for(j = 0; j < grid_cols; j++) {
 			puzzle[i][j] = '0';
-			playboard[i][j] = '#';
+			playboard[i][j] = ' ';
 		}
 	}
 
@@ -146,28 +147,6 @@ static void create_puzzle(void) {
 	}
 }
 
-static void draw_row(int r) {
-	int j = 0;
-
-	wmove(grid,  r * 2 + CELL_WIDTH, 0);
-
-	for(j = 0; j < grid_cols + 1; j++) {
-		waddch(grid, '|');
-		if(j < grid_cols) {
-			int i = 0;
-			for(i = 1; i <= CELL_WIDTH; i++) {
-				if(i == CELL_WIDTH / 2 + 1) {
-					waddch(grid, playboard[r][j]);
-				} else {
-					waddch(grid, ' ');
-				}
-			}
-		}
-	}
-	waddch(grid, '\n');
-}
-
-
 static void draw_grid(void)
 {
 	int i, j;
@@ -175,17 +154,43 @@ static void draw_grid(void)
 
 	for(i = 0; i < grid_rows + 1; i++) {
 		for(j = 0; j < grid_cols + 1; j++) {
-			waddch(grid, '+');
-			if(j < grid_cols) {
-				int k;
-				for(k = 0; k < CELL_WIDTH; k++) 
-					waddch(grid, '-');
+			if(i == 0 && j == 0)
+				waddch(grid, ACS_ULCORNER);
+			else if(i == 0 && j == grid_cols)
+				waddch(grid, ACS_URCORNER);
+			else if(i == grid_rows && j == grid_cols)
+				waddch(grid, ACS_LRCORNER);
+			else if(i == grid_rows && j == 0)
+				waddch(grid, ACS_LLCORNER);
+			else if(i == 0)
+				waddch(grid, ACS_TTEE);
+			else if(i == grid_rows)
+				waddch(grid, ACS_BTEE);
+			else if(j == 0)
+				waddch(grid, ACS_LTEE);
+			else if(j == grid_cols)
+				waddch(grid, ACS_RTEE);
+			else
+				waddch(grid, ACS_PLUS);
+
+			if(j < grid_cols)
+			{
+				waddch(grid, ACS_HLINE);
 			}
 		}
 		waddch(grid, '\n');
-		if(i < grid_rows) {
-			draw_row(i);
+		for(j = 0;j <= grid_cols && i < grid_rows;j++) {
+			waddch(grid, ACS_VLINE);
+			int k = 0;
+			for(k = 1; k <= CELL_WIDTH; k++) {
+				if(CELL_WIDTH / 2 + 1 == k)
+					waddch(grid, OFF(playboard, i, j));
+				else
+					waddch(grid, ' ');
+			}
+			
 		}
+		waddch(grid, '\n');
 	}
 
 }
@@ -197,7 +202,7 @@ static void reset(void) {
 	wmove(grid, START_X, START_Y);
 
 	topen = 0;
-	bombflags = 0;
+	flags = 0;
 
 	create_puzzle();
 	werase(grid);
@@ -205,7 +210,7 @@ static void reset(void) {
 	wrefresh(grid);
 
 	werase(status);
-	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, flags);
 	wrefresh(status);
 
 }
@@ -230,7 +235,7 @@ static void resize_game(void) {
 		wrefresh(status);
 		getch();
 		werase(status);
-		wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+		wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, flags);
 		wrefresh(status);
 	} else { 
 		grid_rows = tmp_rows;
@@ -261,13 +266,13 @@ static void resize_ter(void) {
 	wrefresh(grid);
 
 	werase(status);
-	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+	wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, flags);
 	wrefresh(status);
 
 }
 
 
-int main(void) {
+int main(int argc, char **argv) {
 
 	atexit(clean);
 
@@ -315,19 +320,19 @@ int main(void) {
 			resize_game();
 			break;
 			case 'f':
-			if(OFFSET(playboard, x, y) == '#') { 
-				(OFFSET(playboard, x, y)) = 'f';
-				bombflags++;
+			if(OFF(playboard, x, y) == ' ') { 
+				(OFF(playboard, x, y)) = 'f';
+				flags++;
 				mvwaddch(grid, y, x, 'f');
 				werase(status);
-				wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+				wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, flags);
 			}
 			break;
 			case '\n':
-			if(OFFSET(playboard, x, y) == '#') {
+			if(OFF(playboard, x, y) == ' ') {
 				topen++;
-				mvwaddch(grid, y, x, OFFSET(puzzle, x, y));
-				if((OFFSET(playboard, x, y) = OFFSET(puzzle, x, y)) == 'b') {
+				mvwaddch(grid, y, x, OFF(puzzle, x, y));
+				if((OFF(playboard, x, y) = OFF(puzzle, x, y)) == 'b') {
 					werase(status);
 					wprintw(status, "You lose!");
 					reset();
@@ -336,13 +341,13 @@ int main(void) {
 					wprintw(status, "You win!");
 					reset();
 				}
-			} else {
-				OFFSET(playboard, x, y) = '#';
-				mvwaddch(grid, y, x, '#');
-				bombflags--;
-				if(OFFSET(puzzle, x, y) == 'b') {
+			} else if (OFF(playboard, x, y) == 'f') {
+				OFF(playboard, x, y) = ' ';
+				mvwaddch(grid, y, x, ' ');
+				flags--;
+				if(OFF(puzzle, x, y) == 'b') {
 					werase(status);
-					wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, bombflags);
+					wprintw(status, "bomb(s) = %d, flag(s) = %d", bombs, flags);
 				}
 			}
 			break;
